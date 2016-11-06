@@ -1,7 +1,6 @@
 #include <iostream>
-#include <queue>
-#include <cstdlib>
-#include <map>
+#include <set>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -11,139 +10,106 @@ struct Pixel
 	int num;
 };
 
-int getCurrValue(int r, int c, int width, int n, Pixel pixels[], map<int, int> oldValueMap)
+int getValue(int pos, int n, Pixel pixels[])
 {
-	int index = r*width+c;
-	if (oldValueMap.find(index) != oldValueMap.end() )
-		return oldValueMap[index];
-	if (r < 0 || c >= width || c<0)
-		return -1;
-	int i=0;
-
-	while (i < n)
+	for (size_t i=0; i<n; ++i)
 	{
-		if (index >= pixels[i].num)
-		{
-			index -= pixels[i++].num;
-		} else 
-		{
-			oldValueMap[index] = pixels[i].value;
+		if (pos < pixels[i].num)
 			return pixels[i].value;
-		}
+		else
+			pos -= pixels[i].num;
 	}
-	oldValueMap[index] = -1;
-	return -1;
+	return 0;
 }
 
-int getNewValue(int r, int c, int width, int n, Pixel pixels[], map<int, int> oldValueMap)
+int getNewValue( int width, int row, int pos, int n, Pixel pixels[])
 {
 	int res = 0;
-	int curr = getCurrValue(r, c, width, n, pixels, oldValueMap);
-	for (int i = -1; i<2; ++i)
-		for (int j = -1; j<2; ++j)
-			if (i !=0 || j!=0)
+	int currValue = getValue(pos, n, pixels);
+	// cout << "currValue="<<currValue << " ";
+	for (int i=-1; i<2; ++i)
+		for (int j=-1; j<2; ++j)
+		{
+			int currRow = pos/width+i;
+			int currCol = pos%width+j;
+			if (currRow >= 0 && currCol >= 0 && currRow < row && currCol < width)
 			{
-				int neighbor = getCurrValue(r+i, c+j, width, n, pixels, oldValueMap);
-				// cout << "(" << r+i<<" "<<c+j<<")"<<neighbor << " ";
-				if (neighbor>-1)
-					res = max(res, abs( curr -  neighbor) ) ;
+				int neighbor = getValue(currRow*width+currCol, n, pixels);
+				// cout << "("<<currRow<<","<<currCol<<")=" << neighbor << " ";
+				res = max( abs(currValue - neighbor), res);
 			}
+		}
+	// cout << endl;
 	return res;
 }
 
-struct Segment{
-	int startPos;
-	int endPos;
-	Segment(int startPos, int endPos)
-	  : startPos(startPos)
-	  , endPos(endPos)
-	{
-	}
-};
-
-void cal(int width, Pixel pixels[], int n)
-{	
+void cal(int width, int row, int n, Pixel pixels[])
+{
 	cout << width << endl;
-	int index=0;
-	queue<Segment> posQueue;
-	int startPos = 0;
-	int endPos = 0;
-	for (size_t i=0;i<n;++i)
+	int index = 0;
+	set<int> checkPoints;
+	// IMPORTANT
+	// A  A A A A A
+	// A  A A A A A
+	//(A) A B B B B
+	// (A) is a start!!!
+	// so width*row should also be considered as a start!!!
+	for (size_t k=0; k<=n; ++k)
 	{
-		if ( index > endPos+1 ) {
-			posQueue.push( Segment(startPos, endPos) );
-			startPos = index;
-		}
-		endPos = index+min(width+1, pixels[i].num);
-		if (pixels[i].num > width) {
-			int newStart = index+max(pixels[i].num-width-1, width+1);
-			if ( newStart > endPos+1 ) {
-				posQueue.push( Segment(startPos, endPos) );
-				startPos = newStart;
-			}
-			endPos = index + pixels[i].num;
-		}
-		index += pixels[i].num;
-	}
-	posQueue.push(Segment(startPos, endPos));
-	int value = 0;
-	int num = 0;
-	int lastPos = -1;
-	map<int, int> oldValueMap;
-	while (!posQueue.empty())
-	{
-		Segment currSeg = posQueue.front();
-		for ( size_t currPos = currSeg.startPos; currPos!=currSeg.endPos; ++currPos)
-		{
-			// cout << "currPos=" << currPos << " ";
-			int newValue = getNewValue(currPos/width, currPos%width, width, n, pixels, oldValueMap);
-			// cout << "newValue=" << newValue << endl;
-			if (currPos > lastPos+1)
-			{	// gap
-				if (value == 0)
-					num += currPos-lastPos;
-				else {
-					cout << value <<" "<< num << endl
-						<< 0 << currPos - lastPos << endl;
-					value = newValue;
-					num = 1;
-				}
-			} else {
-				if ( newValue == value)
-					++num;
-				else
+		for (int i=-1; i<2; ++i)
+			for (int j=-1; j<2; ++j)
+			{
+				int currRow = index/width+i;
+				int currCol = index%width+j;
+				if (currRow >= 0 && currCol >= 0 && currRow < row && currCol < width)
 				{
-					if (lastPos != -1)	// skip the first
-						cout << value << " " << num << endl;
-					value = newValue;
-					num = 1;
+					checkPoints.insert(currRow*width+currCol);
 				}
 			}
-			lastPos = currPos;
-		}
-		posQueue.pop();
+		if (k == n)
+			break;
+		index+=pixels[k].num;
 	}
-	cout << value << " "<<num << endl
-	 	 << "0 0" << endl;
+
+	typedef set<int>::const_iterator SIT;
+	// for (SIT it = checkPoints.begin(); it!= checkPoints.end(); ++it)
+	// 	cout << *it << " ";
+	int currPos = 0;
+	int currValue = getNewValue(width, row, 0, n, pixels);
+	for (SIT it = checkPoints.begin(); it!= checkPoints.end(); ++it)
+	{
+		int newPos = *it;
+		int newValue = getNewValue(width, row, newPos, n, pixels);
+		// cout << "newPos="<< newPos << "newValue=" << newValue << endl;
+		if (newValue!=currValue){
+			cout << currValue << " " << newPos-currPos << endl;
+			currValue = newValue;
+			currPos = newPos;
+		}
+	}
+	cout << currValue << " " << width*row-currPos << endl;
 }
 
 int main()
 {
 	int width;
 	cin >> width;
-	Pixel pixels[1000+5];
-	while (width !=0 )
+	while (width !=0)
 	{
+		Pixel pixels[1000+5];
 		int i=0;
-		cin >> pixels[i].value >>pixels[i].num;
-		while (pixels[i].num!=0)
+		int total = 0;
+		cin >> pixels[i].value >> pixels[i].num;
+		while (pixels[i].value !=0 || pixels[i].num != 0)
 		{
+			total+=pixels[i].num;
 			++i;
 			cin >> pixels[i].value >> pixels[i].num;
 		}
-		cal(width, pixels, i);
+		cal(width, total/width, i, pixels);
+		cout << "0 0"<< endl;
 		cin >> width;
 	}
-	cout << "0" << endl;
+	cout << 0 << endl;
 	return 0;
 }
